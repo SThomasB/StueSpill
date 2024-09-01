@@ -2,7 +2,16 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import useSound from 'use-sound';
-interface Player {x:number, y:number, dx:number, dy:number, name:string, size:number}
+interface Player {
+    x:number,
+    y:number,
+    dx:number,
+    dy:number,
+    name:string,
+    size:number,
+    shield:number,
+    suspended:number,
+}
 function drawPlayer(ctx:CanvasRenderingContext2D, player: Player) {
 
             ctx.beginPath();
@@ -24,14 +33,25 @@ function drawPlayer(ctx:CanvasRenderingContext2D, player: Player) {
             ctx.fillStyle = player.name;
             ctx.fill();
             ctx.closePath();
+            if (player.shield) {
+                ctx.beginPath();
+                ctx.arc(player.x, player.y, player.size*2, 0, player.shield/50 * Math.PI * 2 );
+                const grad = ctx.createLinearGradient(player.x-player.size, player.y-player.size, player.x+player.size, player.y+player.size);
+                grad.addColorStop(0, "orange");
+                grad.addColorStop(1, player.name);
+                ctx.fillStyle = grad;
+                ctx.fill();
+                ctx.closePath();
+            }
 }
 const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const sockRef = useRef<WebSocket | null> (socket);
-  const [shootSound] = useSound("shoot.mp3");
+  const [shootSound] = useSound("shoot.mp3", {volume:0.4});
   const [hitSound] = useSound("test_sound.mp3");
-  const [players, setPlayers] = useState<{[key:string]:{dx:number;dy:number;mag:number}}>({});
+  const [shieldSound] = useSound("shield.mp3");
+  const [players, setPlayers] = useState<{[key:string]:{dx:number;dy:number;mag:number;b2:boolean}}>({});
   const [projectiles, setProjectiles] = useState<{name:string; ttl:number}[]>([]);
   const projectilesRef = useRef(projectiles);
   const audioShootRef = useRef(null);
@@ -53,7 +73,7 @@ const GameCanvas: React.FC = () => {
         const name=components[0];
         if (name==="view") {return;}
         if (components[1]==="joined") {
-            playersRef.current[name] = {dx:0, dy:0, mag:0};
+            playersRef.current[name] = {dx:0, dy:0, mag:0, b2:false};
             setMessage(event.data);
             return;
         }
@@ -63,14 +83,19 @@ const GameCanvas: React.FC = () => {
             return;
         }
         if (components[1]===("b1")) {
-            setProjectiles(proj=> [...proj, {name:name, ttl:150}]);
+            setProjectiles(proj=> [...proj, {name:name, ttl:80}]);
             return;
+        }
+        if (components[1]===("b2")) {
+            playersRef.current[name].b2 = true;
         }
         if (components[1]==="m") {
             const dy = Number(components.pop());
             const dx = Number(components.pop());
             const mag = Number(components.pop());
-            playersRef.current[name]={dx:dx, dy:dy, mag:mag};
+            playersRef.current[name].dx=dx;
+            playersRef.current[name].dy=dy;
+            playersRef.current[name].mag=mag;
             return;
         }
     }
@@ -124,12 +149,13 @@ const GameCanvas: React.FC = () => {
             if (player.dead) {return;}
             drawPlayer(context, player);
             p = player.p;
-            if (state.mag!==0) {
+            if (state.mag!==0 && !player.suspended) {
                 player.dx = state.dx/state.mag;
                 player.dy = state.dy/state.mag;
             }
-            player.x += player.dx * state.mag/8;
-            player.y += player.dy * state.mag/8;
+            const capMag = player.suspended?player.suspended:Math.min(160, state.mag);
+            player.x += player.dx * capMag/8 * (1+player.shield/20);
+            player.y += player.dy * capMag/8 * (1+player.shield/20);
             if (window.innerHeight < player.y) {
                 player.y = 0;
             }
@@ -142,8 +168,33 @@ const GameCanvas: React.FC = () => {
             if (player.x < 0 ) {
                 player.x = window.innerWidth;
             };
+            if (player.suspended) {
+                player.suspended -= 20;
+                if (player.suspended < 0) {player.suspended=0;}
+            }
+            if (player.shield) {
+                player.shield-=2;
+                Object.entries(gameState.players).filter(val=> val[0]!==name && (!val[1].suspended)).map(val=>{
+                    const enemy = val[1]
+                    if (
+                        (Math.abs(enemy.x-player.x)<50) && (Math.abs(enemy.y-player.y)<50)
+                    ) {
+                        enemy.dx = player.dx;
+                        enemy.dy = player.dy;
+                        enemy.mag = 50;
+                        enemy.suspended=400;
+                    }
+                })
+            }
+            if (state.b2) {
+                state.b2 = false;
+                player.shield = 50;
+                shieldSound();
+            }
         } else {
-            gameState.players[name] = {size:size,name:name, x:50, y:50, dx:0, dy:0, dead:false};
+            const spawnX = Math.random()*window.innerWidth;
+            const spawnY = Math.random()*window.innerHeight;
+            gameState.players[name] = {suspended:0, shield:0, size:size,name:name, x:spawnX, y:spawnY, dx:0, dy:0, dead:false};
         }
 
       });
@@ -170,12 +221,13 @@ const GameCanvas: React.FC = () => {
         const name = val[0];
         if ((Math.abs(p.x - player.x-25) < 50) && (Math.abs(p.y - player.y-25)<50)) {
                 hitSound();
-                player.dead=true;
+                if (!player.shield) {
+                    player.dead=true;
+                }
                 p.ttl = 0;
                 sockRef?.current?.send(`${name}:hit`);
                 return;
         }
-
         })
         p.ttl-=1;
         context.beginPath();
@@ -205,9 +257,6 @@ const GameCanvas: React.FC = () => {
   borderStyle: "solid"}} />
     <div> {message}
     </div>
-    <audio ref={audioShootRef}>
-        <source src="test_sound.mp3" type="audio/mpeg"/>
-    </audio>
   </>;
 };
 

@@ -10,12 +10,13 @@ import './App.css'
 interface Click {x: number, y: number}
 function App() {
   const playerName = window.location.href.split("/").pop()
-  const [B1, setB1] = useState(5)
+  const [B1, setB1] = useState(5);
+  const [B2, setB2] = useState(1);
   const [click, setClick] = useState<Click>({x:0,y:0});
   const touchpad = useRef<HTMLDivElement | null>(null);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const sockRef = useRef<WebSocket | null> (socket);
-  const mousePosition = useRef({x:0, y:0});
+  const [touchPos, setTouchPos] = useState<number[]>([]);
   const [wasHit, setWasHit] = useState(false);
   const [message, setMessage] = useState("");
   const connectWebSocket = useCallback(()=> {
@@ -58,9 +59,12 @@ function App() {
   }, [connectWebSocket]);
   const sampleTouchRef = useRef<number | null>(null);
   const handleTouchEnd = () => {
-    sockRef?.current?.send(`m:0:0:0`)
+    sockRef?.current?.send(`m:0:0:0`);
+    setTouchActive(false);
   }
+  const [touchActive, setTouchActive] = useState(true);
   const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    setTouchActive(true);
     const rect = touchpad?.current?.getBoundingClientRect();
     const touch = event.touches[0];
     if (rect===null || rect===undefined) {return;}
@@ -72,6 +76,7 @@ function App() {
     const dx = x;
     const dy = y;
     sockRef?.current?.send(`m:${Math.round(mag)}:${Math.round(dx)}:${Math.round(dy)}`);
+  // CSS linear-gradient with calculated angles
   }
   const handleClickB1 = (e) => {
     e.stopPropagation();
@@ -88,6 +93,17 @@ function App() {
     sockRef?.current?.send(`b1`);
     setB1(it=>it-1);
   }
+  const handleClickB2 = (e) => {
+    e.stopPropagation();
+    if (B2 == 0) {
+        return;
+    }
+    if (B2 == 1) {
+        setTimeout(()=>{setB2 (1);}, 10000);
+    }
+    sockRef?.current?.send(`b2`);
+    setB2(it=>it-1);
+  }
   if (wasHit) {
     return <button onClick={()=>window.location.reload(false)}>
         You dead! Click here to revive
@@ -95,7 +111,11 @@ function App() {
   }
   return (
     <div className="controller">
-      <div className="touchpad" ref={touchpad} onTouchStart={handleTouchMove} onTouchEnd={handleTouchEnd}
+      <div
+      className="touchpad"
+      ref={touchpad}
+      onTouchStart={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
       onTouchMove={(event) => {
         if (sampleTouchRef.current) {return;}
         handleTouchMove(event);
@@ -108,6 +128,9 @@ function App() {
       <div className="buttons">
         <div className="b1" onTouchStart={handleClickB1} style={{borderColor:playerName}}>
             <div style={{userSelect: "none"}}>{B1}</div>
+        </div>
+        <div className="b2" onTouchStart={handleClickB2} style={{borderColor:playerName}}>
+            <div style={{userSelect: "none"}}>{B2}</div>
         </div>
       </div>
     </div>
