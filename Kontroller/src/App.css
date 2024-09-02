@@ -18,6 +18,7 @@
     border-style: solid;
     display: grid;
     align-content: center;
+    box-shadow: 0rem 1rem 2rem rgba(0,0,0,0.5);
 
 }
 .b2 {
@@ -29,6 +30,7 @@
     left:-2rem;
     display: grid;
     align-content: center;
+    box-shadow: 0rem 1rem 2rem rgba(0,0,0,0.5);
 }
 .controller {
 box-sizing: border-box;
@@ -55,4 +57,5 @@ touch-action:none;
     align-items: center;
     font-size:50px;
     user-select:none;
+    box-shadow: 0rem 1rem 2rem rgba(0,0,0,0.5);
 }

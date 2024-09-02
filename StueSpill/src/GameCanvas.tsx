@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import useSound from 'use-sound';
+import ScoreBoard from './ScoreBoard';
 interface Player {
     x:number,
     y:number,
@@ -13,19 +14,18 @@ interface Player {
     suspended:number,
 }
 function drawPlayer(ctx:CanvasRenderingContext2D, player: Player) {
-
             ctx.beginPath();
             ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
             ctx.fillStyle = player.name;
             ctx.fill();
             ctx.closePath();
             ctx.beginPath();
-            const refX = player.x+player.dx*50;
-            const refY = player.y+player.dy*50;
+            const refX = player.x+player.dx*45;
+            const refY = player.y+player.dy*45;
             ctx.moveTo(refX, refY);
             ctx.lineTo(player.x, player.y);
             ctx.strokeStyle = player.name;
-            ctx.lineWidth=5;
+            ctx.lineWidth=4;
             ctx.stroke();
             ctx.closePath();
             ctx.beginPath();
@@ -44,11 +44,14 @@ function drawPlayer(ctx:CanvasRenderingContext2D, player: Player) {
                 ctx.closePath();
             }
 }
+
+
 const GameCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const sockRef = useRef<WebSocket | null> (socket);
   const [shootSound] = useSound("shoot.mp3", {volume:0.4});
+  const [score, setScore] = useState({});
   const [hitSound] = useSound("test_sound.mp3");
   const [shieldSound] = useSound("shield.mp3");
   const [players, setPlayers] = useState<{[key:string]:{dx:number;dy:number;mag:number;b2:boolean}}>({});
@@ -64,7 +67,7 @@ const GameCanvas: React.FC = () => {
     if (sockRef.current && sockRef.current.readyState===WebSocket.OPEN) {
             return;
         }
-    const ws = new WebSocket("ws://192.168.10.96:9160");
+    const ws = new WebSocket("ws://0.0.0.0:9160");
     ws.onopen = () => {
         ws.send('view');
     };
@@ -223,6 +226,15 @@ const GameCanvas: React.FC = () => {
                 hitSound();
                 if (!player.shield) {
                     player.dead=true;
+                    setScore(prev=> {
+                        let next = {...prev};
+                        if (p.name in next) {
+                        next[p.name] +=1;
+                        } else {
+                            next[p.name] = 1;
+                        }
+                        return next;
+                    })
                 }
                 p.ttl = 0;
                 sockRef?.current?.send(`${name}:hit`);
@@ -253,11 +265,19 @@ const GameCanvas: React.FC = () => {
     };
   }, []);
 
-  return <><canvas ref={canvasRef} style={{ width:"100%",boxSizing:"border-box",display: 'block',
+  return <div style={{display:"flex", flexDirection:"row", gap:"1rem"}}>
+    <ScoreBoard score={score} reset={()=>{
+        setScore({});
+    }}>
+    </ScoreBoard>
+    <div>
+  <canvas ref={canvasRef} style={{ borderRadius: "1rem", width:"100%",boxSizing:"border-box",display: 'block',
   borderStyle: "solid"}} />
     <div> {message}
     </div>
-  </>;
+
+    </div>
+  </div>;
 };
 
 export default GameCanvas;

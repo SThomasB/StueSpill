@@ -23,7 +23,7 @@ function App() {
     if (sockRef.current && sockRef.current.readyState===WebSocket.OPEN) {
             return;
         }
-    const ws = new WebSocket("ws://192.168.10.96:9160");
+    const ws = new WebSocket("ws://192.168.10.166:9160");
     ws.onopen = () => {
         if (!playerName) {return;}
         ws.send(playerName);
