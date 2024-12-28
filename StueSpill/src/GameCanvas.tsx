@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import useSound from 'use-sound';
 import ScoreBoard from './ScoreBoard';
+import QRCode from 'react-qr-code';
 interface Player {
     x:number,
     y:number,
@@ -45,8 +46,10 @@ function drawPlayer(ctx:CanvasRenderingContext2D, player: Player) {
             }
 }
 
-
+const colors = {"red":false, "green":false, "blue":false, "yellow":false, "pink":false, "black":false, "cyan":false};
 const GameCanvas: React.FC = () => {
+  const [colorsInUse, setColorsInUse] = useState(colors);
+  const nextColor = (Object.entries(colorsInUse).find(([name, inUse])=>inUse===false)??[""])[0];
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const sockRef = useRef<WebSocket | null> (socket);
@@ -67,7 +70,7 @@ const GameCanvas: React.FC = () => {
     if (sockRef.current && sockRef.current.readyState===WebSocket.OPEN) {
             return;
         }
-    const ws = new WebSocket("ws://0.0.0.0:9160");
+    const ws = new WebSocket("ws://192.168.228.224:9160");
     ws.onopen = () => {
         ws.send('view');
     };
@@ -78,11 +81,17 @@ const GameCanvas: React.FC = () => {
         if (components[1]==="joined") {
             playersRef.current[name] = {dx:0, dy:0, mag:0, b2:false};
             setMessage(event.data);
+            if (Object.keys(colorsInUse).includes(name)) {
+                setColorsInUse(prev=>{return {...prev, [name]:true}});
+            }
             return;
         }
         if (components[1]===("disconnected")) {
             delete playersRef.current[name];
             setMessage(event.data);
+            if (Object.keys(colorsInUse).includes(name)) {
+                setColorsInUse(prev=>{return {...prev, [name]:false}});
+            }
             return;
         }
         if (components[1]===("b1")) {
@@ -189,11 +198,11 @@ const GameCanvas: React.FC = () => {
                     }
                 })
             }
-            if (state.b2) {
-                state.b2 = false;
-                player.shield = 50;
-                shieldSound();
-            }
+        if (state.b2) {
+            state.b2 = false;
+            player.shield = 50;
+            shieldSound();
+        }
         } else {
             const spawnX = Math.random()*window.innerWidth;
             const spawnY = Math.random()*window.innerHeight;
@@ -266,10 +275,15 @@ const GameCanvas: React.FC = () => {
   }, []);
 
   return <div style={{display:"flex", flexDirection:"row", gap:"1rem"}}>
+    <div>
+    {nextColor &&
+    <QRCode value={`http://192.168.228.224:5173/${nextColor??""}`} fgColor={nextColor} size={128}></QRCode>
+    }
     <ScoreBoard score={score} reset={()=>{
         setScore({});
     }}>
     </ScoreBoard>
+    </div>
     <div>
   <canvas ref={canvasRef} style={{ borderRadius: "1rem", width:"100%",boxSizing:"border-box",display: 'block',
   borderStyle: "solid"}} />
